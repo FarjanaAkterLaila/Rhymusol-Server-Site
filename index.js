@@ -36,11 +36,15 @@ async function run() {
     
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    
+    
     // user info added
     app.get('/user', async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+    
+    
     app.post('/user',async(req,res)=>{
     const user = req.body;
     const query = { email: user.email }
@@ -52,6 +56,35 @@ async function run() {
 
     const result = await userCollection.insertOne(user);
     res.send(result);
+  })
+
+  app.patch('/user/admin/:id', async (req, res) => {
+    const id = req.params.id;
+    console.log(id);
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: {
+        role: 'Admin'
+      },
+    };
+
+    const result = await userCollection.updateOne(filter, updateDoc);
+    res.send(result);
+
+  })
+  app.patch('/user/instructor/:id', async (req, res) => {
+    const id = req.params.id;
+    console.log(id);
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: {
+        role: 'Instructor'
+      },
+    };
+
+    const result = await userCollection.updateOne(filter, updateDoc);
+    res.send(result);
+
   })
 
     //classes
