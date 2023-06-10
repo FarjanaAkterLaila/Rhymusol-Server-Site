@@ -1,5 +1,6 @@
 const express = require('express') ;
 const app = express();
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 
@@ -8,6 +9,23 @@ require('dotenv').config()
 // middleware
 app.use(cors());
 app.use(express.json());
+
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: 'unauthorized access' });
+  }
+  // bearer token
+  const token = authorization.split(' ')[1];
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ error: true, message: 'unauthorized access' })
+    }
+    req.decoded = decoded;
+    next();
+  })
+}
 
 console.log(process.env.DB_USER)
 
@@ -36,10 +54,25 @@ async function run() {
     
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    
-    
+    app.post('/jwt', (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: 60*60 })
+
+      res.send({ token })
+    })
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      if (user?.role !== 'Admin') {
+        return res.status(403).send({ error: true, message: 'forbidden message' });
+      }
+      next();
+    }
+
     // user info added
-    app.get('/user', async (req, res) => {
+    app.get('/user',verifyJWT,verifyAdmin,async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
@@ -57,6 +90,19 @@ async function run() {
     const result = await userCollection.insertOne(user);
     res.send(result);
   })
+  app.get('/user/admin/:email', verifyJWT, async (req, res) => {
+    const email = req.params.email;
+
+    if (req.decoded.email !== email) {
+      res.send({ admin: false })
+    }
+
+    const query = { email: email }
+    const user = await userCollection.findOne(query);
+    const result = { admin: user?.role === 'Admin' }
+    res.send(result);
+  })
+
 
   app.patch('/user/admin/:id', async (req, res) => {
     const id = req.params.id;
@@ -71,6 +117,19 @@ async function run() {
     const result = await userCollection.updateOne(filter, updateDoc);
     res.send(result);
 
+  })
+  app.get('/user/instructor/:email', verifyJWT,async (req, res) => {
+    const email = req.params.email;
+console.log(email)
+    if (req.decoded.email !== email) {
+      res.send({ instructor: false })
+    }
+
+    const query = { email: email }
+    const user = await userCollection.findOne(query);
+    const result = { instructor: user?.role === 'Instructor' }
+    console.log(result)
+    res.send(result);
   })
   app.patch('/user/instructor/:id', async (req, res) => {
     const id = req.params.id;
@@ -95,16 +154,16 @@ async function run() {
   })
   
   //addcard
-app.get('/addcard',async(req,res)=>{
+app.get('/addcard',verifyJWT,async(req,res)=>{
   const email = req.query.email;
 
   if (!email) {
     res.send([]);
   }
 
-  //const decodedEmail = req.decoded.email;
-  if (!email) {
-    return res.status(403).send({ error: true, message: 'porviden access' })
+  const decodedEmail = req.decoded.email;
+  if (email!==decodedEmail) {
+    return res.status(403).send({ error: true, message: 'forbidden access' })
   }
 
   const query = { email: email };
