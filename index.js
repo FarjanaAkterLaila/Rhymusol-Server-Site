@@ -3,7 +3,7 @@ const app = express();
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const port = process.env.PORT || 5000;
-
+const stripe = require('stripe')('sk_test_51NHtZrKX27vGLZRt2X4n8bW4tlh3qawnPjc2y2H46NgGDDpFsE2FwMMIIToLKOJRL79OYyXlXL2g01EZWiHz72Ha00pKIUyHEt')
 
 require('dotenv').config()
 // middleware
@@ -70,6 +70,8 @@ async function run() {
       }
       next();
     }
+
+
 
     // user info added
     app.get('/user', verifyJWT, verifyAdmin, async (req, res) => {
@@ -163,6 +165,7 @@ async function run() {
       const result = await classesCollection.insertOne(newItem)
       res.send(result);
     })
+   
     //addcard
     app.get('/addcard', async (req, res) => {
       const email = req.query.email;
@@ -180,6 +183,13 @@ async function run() {
       const result = await cardCollection.find(query).toArray();
       res.send(result);
     })
+    app.get('/addcard/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) }
+      const result = await cardCollection.findOne(query);
+      res.send(result);
+  })
     app.post('/addcard', async (req, res) => {
       const iteam = req.body;
       console.log(iteam);
@@ -195,7 +205,23 @@ async function run() {
       res.send(result);
     })
 
-
+// payment 
+app.post('/create-payment-intent', async (req, res) =>{
+  const {price} = req.body;
+ 
+  const amount =price;
+  console.log(price,amount)
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount:amount,
+    currency:'usd',
+    payment_method_types: [
+      'card'
+    ],
+  });
+  res.send({
+    clientSecret:paymentIntent.client_secret
+  })
+})
 
 
   } finally {
