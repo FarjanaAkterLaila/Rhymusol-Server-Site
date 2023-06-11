@@ -1,4 +1,4 @@
-const express = require('express') ;
+const express = require('express');
 const app = express();
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -50,13 +50,13 @@ async function run() {
     const userCollection = client.db('musicDb').collection('user');
     const classesCollection = client.db('musicDb').collection('classes');
     const cardCollection = client.db('musicDb').collection('addcard');
-    
-    
+
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
     app.post('/jwt', (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: 60*60 })
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: 60 * 60 })
 
       res.send({ token })
     })
@@ -72,118 +72,128 @@ async function run() {
     }
 
     // user info added
-    app.get('/user',verifyJWT,verifyAdmin,async (req, res) => {
+    app.get('/user', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+
+
+    app.post('/user', async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email }
+      const existingUser = await userCollection.findOne(query);
+
+      if (existingUser) {
+        return res.send({ message: 'user already exists' })
+      }
+
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    })
+    //admin info
+    app.get('/user/admin/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+
+      if (req.decoded.email !== email) {
+        res.send({ admin: false })
+      }
+
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      const result = { admin: user?.role === 'Admin' }
+      res.send(result);
+    })
+
+
+    app.patch('/user/admin/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: 'Admin'
+        },
+      };
+
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+
+    })
+
+    //instructor 
+    app.get('/user/instructor/:email',verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      console.log(email)
+      console.log(req.decoded.email)
+      
+      if (req.decoded.email !== email) {
+        res.send({ instructor: false })
+      }
     
-    
-    app.post('/user',async(req,res)=>{
-    const user = req.body;
-    const query = { email: user.email }
-    const existingUser = await userCollection.findOne(query);
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      console.log(user?.role)
+      const result = { instructor: user?.role === 'Instructor' }
+      console.log(user?.role)
+      res.send(result);
+    })
+    app.patch('/user/instructor/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: 'Instructor'
+        },
+      };
 
-    if (existingUser) {
-      return res.send({ message: 'user already exists' })
-    }
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
 
-    const result = await userCollection.insertOne(user);
-    res.send(result);
-  })
-  app.get('/user/admin/:email', verifyJWT, async (req, res) => {
-    const email = req.params.email;
-
-    if (req.decoded.email !== email) {
-      res.send({ admin: false })
-    }
-
-    const query = { email: email }
-    const user = await userCollection.findOne(query);
-    const result = { admin: user?.role === 'Admin' }
-    res.send(result);
-  })
-
-
-  app.patch('/user/admin/:id', async (req, res) => {
-    const id = req.params.id;
-    console.log(id);
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: {
-        role: 'Admin'
-      },
-    };
-
-    const result = await userCollection.updateOne(filter, updateDoc);
-    res.send(result);
-
-  })
-  app.get('/user/instructor/:email', verifyJWT,async (req, res) => {
-    const email = req.params.email;
-console.log(email)
-    if (req.decoded.email !== email) {
-      res.send({ instructor: false })
-    }
-
-    const query = { email: email }
-    const user = await userCollection.findOne(query);
-    const result = { instructor: user?.role === 'Instructor' }
-    console.log(result)
-    res.send(result);
-  })
-  app.patch('/user/instructor/:id', async (req, res) => {
-    const id = req.params.id;
-    console.log(id);
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: {
-        role: 'Instructor'
-      },
-    };
-
-    const result = await userCollection.updateOne(filter, updateDoc);
-    res.send(result);
-
-  })
+    })
 
     //classes
     app.get('/classes', async (req, res) => {
       const cursor = classesCollection.find();
       const result = await cursor.toArray();
       res.send(result);
-  })
-  
-  //addcard
-app.get('/addcard',verifyJWT,async(req,res)=>{
-  const email = req.query.email;
+    })
+    app.post('/classes', verifyJWT, async (req, res) => {
+      const newItem = req.body;
+      const result = await classesCollection.insertOne(newItem)
+      res.send(result);
+    })
+    //addcard
+    app.get('/addcard', async (req, res) => {
+      const email = req.query.email;
 
-  if (!email) {
-    res.send([]);
-  }
+      if (!email) {
+        res.send([]);
+      }
 
-  const decodedEmail = req.decoded.email;
-  if (email!==decodedEmail) {
-    return res.status(403).send({ error: true, message: 'forbidden access' })
-  }
+      // const decodedEmail = req.decoded.email;
+      // if (email !== req.email) {
+      //   return res.status(403).send({ error: true, message: 'forbidden access' })
+      // }
 
-  const query = { email: email };
-  const result = await cardCollection.find(query).toArray();
-  res.send(result);
-})
-  app.post('/addcard',async(req,res)=>{
-    const iteam = req.body;
-    console.log(iteam);
-    const result = await cardCollection.insertOne(iteam)
-    res.send(result);
-  })
-  
-  app.delete('/addcard/:id', async (req, res) => {
-    const id = req.params.id;
-    console.log(id);
-    const query = { _id: new ObjectId(id)};
-     const result = await cardCollection.deleteOne(query);
-     res.send(result);
-  })
+      const query = { email: email };
+      const result = await cardCollection.find(query).toArray();
+      res.send(result);
+    })
+    app.post('/addcard', async (req, res) => {
+      const iteam = req.body;
+      console.log(iteam);
+      const result = await cardCollection.insertOne(iteam)
+      res.send(result);
+    })
+
+    app.delete('/addcard/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const result = await cardCollection.deleteOne(query);
+      res.send(result);
+    })
 
 
 
@@ -195,9 +205,9 @@ app.get('/addcard',verifyJWT,async(req,res)=>{
 }
 run().catch(console.dir);
 
-app.get('/',(req,res)=>{
-    res.send("school setting")
+app.get('/', (req, res) => {
+  res.send("school setting")
 })
-app.listen(port,()=>{
-    console.log(`school is sitting on port: ${port}`);
+app.listen(port, () => {
+  console.log(`school is sitting on port: ${port}`);
 })
