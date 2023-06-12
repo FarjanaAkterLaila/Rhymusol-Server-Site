@@ -186,10 +186,7 @@ async function run() {
         res.send([]);
       }
 
-      // const decodedEmail = req.decoded.email;
-      // if (email !== req.email) {
-      //   return res.status(403).send({ error: true, message: 'forbidden access' })
-      // }
+    
 
       const query = { email: email };
       const result = await cardCollection.find(query).toArray();
