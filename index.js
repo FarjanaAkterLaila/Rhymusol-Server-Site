@@ -2,14 +2,15 @@ const express = require('express');
 const app = express();
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+
 const port = process.env.PORT || 5000;
-const stripe = require('stripe')('sk_test_51NHtZrKX27vGLZRt2X4n8bW4tlh3qawnPjc2y2H46NgGDDpFsE2FwMMIIToLKOJRL79OYyXlXL2g01EZWiHz72Ha00pKIUyHEt')
+
 
 require('dotenv').config()
 // middleware
 app.use(cors());
 app.use(express.json());
-
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
@@ -49,8 +50,9 @@ async function run() {
     // Send a ping to confirm a successful connection
     const userCollection = client.db('musicDb').collection('user');
     const classesCollection = client.db('musicDb').collection('classes');
+    const instrucCollection = client.db('musicDb').collection('instructor');
     const cardCollection = client.db('musicDb').collection('addcard');
-
+    const paymentCollection = client.db("musicDb").collection("payments");
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -160,6 +162,11 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     })
+    app.get('/instractor', async (req, res) => {
+      const cursor = instrucCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    })
     app.post('/classes', verifyJWT, async (req, res) => {
       const newItem = req.body;
       const result = await classesCollection.insertOne(newItem)
@@ -209,7 +216,7 @@ async function run() {
 app.post('/create-payment-intent', async (req, res) =>{
   const {price} = req.body;
  
-  const amount =price;
+  const amount = price*100;
   console.log(price,amount)
   const paymentIntent = await stripe.paymentIntents.create({
     amount:amount,
@@ -222,7 +229,16 @@ app.post('/create-payment-intent', async (req, res) =>{
     clientSecret:paymentIntent.client_secret
   })
 })
-
+app.post('/payments', verifyJWT, async (req, res) => {
+  const payment = req.body;
+  const insertResult = await paymentCollection.insertOne(payment);
+  const itemIdToDelete = payment.id;
+  
+  const query = { _id: itemIdToDelete };
+  const deleteResult = await cardCollection.deleteOne(query);
+  
+  res.send({ insertResult, deleteResult });
+});
 
   } finally {
     // Ensures that the client will close when you finish/error
