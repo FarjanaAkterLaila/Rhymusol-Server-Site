@@ -81,8 +81,9 @@ async function run() {
       res.send(result);
     });
     app.get('/payments', async (req, res) => {
-      const result = await paymentCollection.find().toArray();
-      res.send(result);
+      
+      const payments = await paymentCollection.find().sort({ date: -1 }).toArray();
+      res.send(payments);
     });
 
 
