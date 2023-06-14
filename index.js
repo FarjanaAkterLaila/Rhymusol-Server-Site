@@ -46,7 +46,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    //await client.connect();
     // Send a ping to confirm a successful connection
     const userCollection = client.db('musicDb').collection('user');
     const classesCollection = client.db('musicDb').collection('classes');
@@ -81,7 +81,7 @@ async function run() {
       res.send(result);
     });
     app.get('/payments', async (req, res) => {
-      
+
       const payments = await paymentCollection.find().sort({ date: -1 }).toArray();
       res.send(payments);
     });
@@ -130,15 +130,15 @@ async function run() {
     })
 
     //instructor 
-    app.get('/user/instructor/:email',verifyJWT, async (req, res) => {
+    app.get('/user/instructor/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       console.log(email)
       console.log(req.decoded.email)
-      
+
       if (req.decoded.email !== email) {
         res.send({ instructor: false })
       }
-    
+
       const query = { email: email }
       const user = await userCollection.findOne(query);
       console.log(user?.role)
@@ -146,6 +146,49 @@ async function run() {
       console.log(user?.role)
       res.send(result);
     })
+    app.get("/classes/:email", async (req, res) => {
+      //console.log(req.params.id);
+      const result = await classesCollection
+        .find({
+          InstactorEmail: req.params.email,
+        })
+        .toArray();
+      res.send(result);
+    });
+    app.get('/dashboard/update/:id', async (req, res) => {
+      console.log(req.params.id);
+        const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) }
+      const result = await classesCollection.findOne(query);
+      res.send(result);
+      
+    });
+    app.patch('/dashboard/update/:id', async (req, res) => {
+    
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) }
+      const options = { upsert: true };
+      const updatedcls = req.body;
+
+      const cls = {
+        $set: {
+
+
+          Name: updatedcls.Name,
+
+          AvailableSeats: parseFloat(updatedcls.AvailableSeats),
+
+          Price: parseFloat(updatedcls.Price),
+
+          Image: updatedcls.Image,
+
+        }
+      }
+
+       const result = await classesCollection.updateOne(filter, cls, options);
+       res.send(result);
+     })
     app.patch('/user/instructor/:id', async (req, res) => {
       const id = req.params.id;
       console.log(id);
@@ -160,6 +203,60 @@ async function run() {
       res.send(result);
 
     })
+    app.patch('/classes/approved/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: 'Approved'
+        },
+      };
+
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+
+    })
+    app.patch('/classes/deny/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: 'Deny'
+        },
+      };
+
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+
+    })
+    app.patch('/classes/feedback/:id', async (req, res) => {
+      const id = req.params.id;
+      const feedback = req.body.feedback;
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          feedback: feedback,
+        },
+      };
+
+      classesCollection
+        .updateOne(filter, updateDoc)
+        .then((result) => {
+          if (result.modifiedCount === 1) {
+            res.json({ success: true, message: 'Feedback saved successfully.' });
+          } else {
+            res.json({ success: false, message: 'Failed to save feedback.' });
+          }
+        })
+        .catch((error) => {
+          console.error(error);
+          res.status(500).json({ success: false, message: 'Internal server error.' });
+        });
+    });
+
 
     //classes
     app.get('/classes', async (req, res) => {
@@ -167,17 +264,29 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     })
+    // app.get('/classes/:id', async (req, res) => {
+    //   //console.log(id);
+    //   const id = req.params.id;
+    //   console.log(id);
+    //   const query = { _id: new ObjectId(id) }
+    //   const result = await classesCollection.findOne(query);
+    //   res.send(result);
+    // })
+    
+
+
+
     app.get('/instractor', async (req, res) => {
       const cursor = instrucCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     })
-    app.post('/classes', verifyJWT, async (req, res) => {
+    app.post('/classes',verifyJWT, async (req, res) => {
       const newItem = req.body;
       const result = await classesCollection.insertOne(newItem)
       res.send(result);
     })
-   
+
     //addcard
     app.get('/addcard', async (req, res) => {
       const email = req.query.email;
@@ -185,8 +294,6 @@ async function run() {
       if (!email) {
         res.send([]);
       }
-
-    
 
       const query = { email: email };
       const result = await cardCollection.find(query).toArray();
@@ -198,7 +305,7 @@ async function run() {
       const query = { _id: new ObjectId(id) }
       const result = await cardCollection.findOne(query);
       res.send(result);
-  })
+    })
     app.post('/addcard', async (req, res) => {
       const iteam = req.body;
       console.log(iteam);
@@ -214,33 +321,33 @@ async function run() {
       res.send(result);
     })
 
-// payment 
-app.post('/create-payment-intent', async (req, res) =>{
-  const {price} = req.body;
- 
-  const amount = price*100;
-  console.log(price,amount)
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount:amount,
-    currency:'usd',
-    payment_method_types: [
-      'card'
-    ],
-  });
-  res.send({
-    clientSecret:paymentIntent.client_secret
-  })
-})
-app.post('/payments', verifyJWT, async (req, res) => {
-  const payment = req.body;
-  const insertResult = await paymentCollection.insertOne(payment);
-  const itemIdToDelete = payment.id;
-  
-  const query = { _id: itemIdToDelete };
-  const deleteResult = await cardCollection.deleteOne(query);
-  
-  res.send({ insertResult, deleteResult });
-});
+    // payment 
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
+
+      const amount = price * 100;
+      console.log(price, amount)
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: [
+          'card'
+        ],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+    app.post('/payments', verifyJWT, async (req, res) => {
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
+      const itemIdToDelete = payment.id;
+
+      const query = { _id: itemIdToDelete };
+      const deleteResult = await cardCollection.deleteOne(query);
+
+      res.send({ insertResult, deleteResult });
+    });
 
   } finally {
     // Ensures that the client will close when you finish/error
