@@ -260,18 +260,16 @@ async function run() {
 
     //classes
     app.get('/classes', async (req, res) => {
-      const cursor = classesCollection.find();
+      const query = {};
+      const options={
+        sort:{"enrolledstude": -1}
+      }
+      const cursor = classesCollection.find( query,options);
       const result = await cursor.toArray();
+  
       res.send(result);
     })
-    // app.get('/classes/:id', async (req, res) => {
-    //   //console.log(id);
-    //   const id = req.params.id;
-    //   console.log(id);
-    //   const query = { _id: new ObjectId(id) }
-    //   const result = await classesCollection.findOne(query);
-    //   res.send(result);
-    // })
+
     
 
 
@@ -345,11 +343,35 @@ async function run() {
 
       const query = { _id: itemIdToDelete };
       const deleteResult = await cardCollection.deleteOne(query);
-
-      res.send({ insertResult, deleteResult });
-    });
-
-  } finally {
+    console.log(insertResult )
+      
+      if (insertResult.result.ok && deleteResult.result.ok) {
+       
+        const classId = payment.cardItemId;
+    
+        
+        const updateResult = await classesCollection.updateOne(
+          { _id: classId },
+          { 
+            $inc: { AvailableSeats: -1 },
+           $inc: { enrolledstude: 1 }
+          }
+        );
+    
+        if (updateResult.result.ok) {
+         
+          res.send({ insertResult, deleteResult, updateResult });
+        } else {
+         
+          res.status(500).send('Failed to update class information.');
+        }
+      } else {
+        
+        res.status(500).send('Failed to process payment.');
+      }
+    });}
+    
+    finally {
     // Ensures that the client will close when you finish/error
     //await client.close();
   }
